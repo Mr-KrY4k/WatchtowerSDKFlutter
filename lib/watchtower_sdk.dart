@@ -51,14 +51,15 @@ class Watchtower {
     required String appId,
     required String appKey,
     String host = 'watchtower.cyou',
-    int port = 8008,
+    int port = 50053,
     bool enableSessionRecorder = false,
     bool useTls = true,
     int sessionRecordIntervalInMs = 300,
   }) async {
     validateWatchtowerParams(
-        enableSessionRecorder: enableSessionRecorder,
-        sessionRecordIntervalInMs: sessionRecordIntervalInMs);
+      enableSessionRecorder: enableSessionRecorder,
+      sessionRecordIntervalInMs: sessionRecordIntervalInMs,
+    );
     await getDeviceInfo();
 
     // If SDK already initialized skip init process
@@ -80,10 +81,11 @@ class Watchtower {
     logger.d("packageInfo.version: ${packageInfo.version}");
     // Creaete watchtower connector
     watchtowerConnector = WatchtowerConnector(
-        host: host,
-        port: port,
-        useTls: useTls,
-        onConnectionStateChanged: _onWatchtowerConnectionStateChanged);
+      host: host,
+      port: port,
+      useTls: useTls,
+      onConnectionStateChanged: _onWatchtowerConnectionStateChanged,
+    );
     await watchtowerConnector.createChannel();
 
     // Init data store
@@ -111,38 +113,49 @@ class Watchtower {
     }
   }
 
-  static void validateWatchtowerParams(
-      {bool? enableSessionRecorder, int? sessionRecordIntervalInMs}) {
+  static void validateWatchtowerParams({
+    bool? enableSessionRecorder,
+    int? sessionRecordIntervalInMs,
+  }) {
     if (sessionRecordIntervalInMs != null) {
-      assert(sessionRecordIntervalInMs >= 100,
-          "Session record interval should be greater or equal to 100 ms");
-      assert(sessionRecordIntervalInMs <= 10000,
-          "Session record interval should be less or equal to 10000 ms");
+      assert(
+        sessionRecordIntervalInMs >= 100,
+        "Session record interval should be greater or equal to 100 ms",
+      );
+      assert(
+        sessionRecordIntervalInMs <= 10000,
+        "Session record interval should be less or equal to 10000 ms",
+      );
     }
   }
 
   static Future<void> _initSessionrecorder(
-      int sessionRecordIntervalInMs) async {
+    int sessionRecordIntervalInMs,
+  ) async {
     logger.d("Init sessions recorder");
     sessionRecoreder.init(
-        sessionId: sessionId,
-        pixelRatio: 1.0,
-        interval: sessionRecordIntervalInMs);
+      sessionId: sessionId,
+      pixelRatio: 1.0,
+      interval: sessionRecordIntervalInMs,
+    );
 
     // Subsctibe to a screenshot local store stream to save screenshot if GRPC server unavailable
     logger.d("Enable saving session frames to local store");
-    SessionRecorder.screenshotLocalStoreStreamController.stream
-        .listen((pngData) {
+    SessionRecorder.screenshotLocalStoreStreamController.stream.listen((
+      pngData,
+    ) {
       DataStore().saveSessionFrame(
+        sessionId: sessionId,
+        frame: SessionFrame(
+          appId: appData.appId,
+          appBundle: appData.appBundle,
+          appKey: appData.appKey,
+          userId: userAppData.userId,
           sessionId: sessionId,
-          frame: SessionFrame(
-              appId: appData.appId,
-              appBundle: appData.appBundle,
-              appKey: appData.appKey,
-              userId: userAppData.userId,
-              sessionId: sessionId,
-              frameTimestamp: currentTimeStamp(),
-              frame: pngData));
+          frameTimestamp: currentTimeStamp(),
+          frame: pngData,
+        ),
+      );
     });
 
     await _startSessionRecordTransmition();
@@ -170,12 +183,13 @@ class Watchtower {
     }
   }
 
-  static Future<void> updateUserAppData(
-      {String? gaid,
-      String? oaid,
-      String? idfa,
-      String? fcmToken,
-      String? hmsToken}) async {
+  static Future<void> updateUserAppData({
+    String? gaid,
+    String? oaid,
+    String? idfa,
+    String? fcmToken,
+    String? hmsToken,
+  }) async {
     gaid = gaid ?? gaid;
     oaid = oaid ?? oaid;
     idfa = idfa ?? idfa;
@@ -188,11 +202,12 @@ class Watchtower {
     logger.d("Received userAppData: ${userAppData.toJson()}");
 
     savedUserAppData = savedUserAppData.copyWith(
-        gaid: gaid,
-        oaid: oaid,
-        idfa: idfa,
-        fcmToken: fcmToken,
-        hmsToken: hmsToken);
+      gaid: gaid,
+      oaid: oaid,
+      idfa: idfa,
+      fcmToken: fcmToken,
+      hmsToken: hmsToken,
+    );
 
     logger.d("Updated user data: ${userAppData.toJson()}");
     await dataStore.saveUserAppData(savedUserAppData);
@@ -220,15 +235,19 @@ class Watchtower {
       );
       logger.d("Created application start event: ${event.toProto3Json()}");
       logger.d(
-          "Created application start event fcmToken: ${event.appStartPayload.fcmToken}");
+        "Created application start event fcmToken: ${event.appStartPayload.fcmToken}",
+      );
       _saveEventToBatch(event: event);
     } catch (e) {
       logger.e("Error during send app start event: $e");
     }
   }
 
-  static Future<void> sendLogEvent(
-      {logLib.Level? level, String? message, String? moduleName}) async {
+  static Future<void> sendLogEvent({
+    logLib.Level? level,
+    String? message,
+    String? moduleName,
+  }) async {
     logger.d("Send log event");
 
     LogPayload_LOG_LEVEL.DEBUG;
@@ -238,9 +257,10 @@ class Watchtower {
         eventType: Event_EVENT_TYPE.LOG,
         eventTimestamp: currentTimeStamp(),
         logPayload: LogPayload(
-            level: _logLevelToProtoLogLevel(level),
-            message: message,
-            moduleName: moduleName),
+          level: _logLevelToProtoLogLevel(level),
+          message: message,
+          moduleName: moduleName,
+        ),
       );
       logger.d("Created log event: ${event.toProto3Json()}");
       _saveEventToBatch(event: event);
@@ -249,18 +269,17 @@ class Watchtower {
     }
   }
 
-  static Future<void> sendCustomEvent(
-      {required String name, required String data}) async {
+  static Future<void> sendCustomEvent({
+    required String name,
+    required String data,
+  }) async {
     logger.d("Send custom event");
     try {
       Event event = Event(
         sessionId: sessionId,
         eventType: Event_EVENT_TYPE.CUSTOM,
         eventTimestamp: currentTimeStamp(),
-        customPayload: CustomPayload(
-          name: name,
-          data: data,
-        ),
+        customPayload: CustomPayload(name: name, data: data),
       );
       logger.d("Created custom event: ${event.toProto3Json()}");
       _saveEventToBatch(event: event);
@@ -269,8 +288,11 @@ class Watchtower {
     }
   }
 
-  static Future<void> sendOpenLinkEvent(
-      {required String uri, int? responseCode, String? responseText}) async {
+  static Future<void> sendOpenLinkEvent({
+    required String uri,
+    int? responseCode,
+    String? responseText,
+  }) async {
     logger.d("Send open link event");
     try {
       Event event = Event(
@@ -278,7 +300,10 @@ class Watchtower {
         eventType: Event_EVENT_TYPE.OPEN_LINK,
         eventTimestamp: currentTimeStamp(),
         openLinkPayload: OpenLinkPayload(
-            uri: uri, responseCode: responseCode, responseText: responseText),
+          uri: uri,
+          responseCode: responseCode,
+          responseText: responseText,
+        ),
       );
       logger.d("Created open link event: ${event.toProto3Json()}");
       _saveEventToBatch(event: event);
@@ -294,11 +319,13 @@ class Watchtower {
   }
 
   static logLib.Logger getWatchtoweLogger(String? moduleName) {
-    return getLogger(moduleName,
-        output: logLib.MultiOutput([
-          logLib.ConsoleOutput(),
-          WatchtowerOutput(eventHandler: sendLogEvent),
-        ]));
+    return getLogger(
+      moduleName,
+      output: logLib.MultiOutput([
+        logLib.ConsoleOutput(),
+        WatchtowerOutput(eventHandler: sendLogEvent),
+      ]),
+    );
   }
 
   static void _onWatchtowerConnectionStateChanged(bool state) {
@@ -320,16 +347,19 @@ class Watchtower {
     logger.d("Start session record transmition");
     try {
       watchtowerConnector.stub.postSessionRecord(
-          SessionRecorder.screenshotStreamController.stream.map(
-              ((Uint8List? pngData) => SessionFrame(
-                  appId: appData.appId,
-                  appBundle: appData.appBundle,
-                  appKey: appData.appKey,
-                  userId: userAppData.userId,
-                  sessionId: sessionId,
-                  frameTimestamp: currentTimeStamp(),
-                  frame: pngData))),
-          options: CallOptions(timeout: const Duration(hours: 1)));
+        SessionRecorder.screenshotStreamController.stream.map(
+          ((Uint8List? pngData) => SessionFrame(
+            appId: appData.appId,
+            appBundle: appData.appBundle,
+            appKey: appData.appKey,
+            userId: userAppData.userId,
+            sessionId: sessionId,
+            frameTimestamp: currentTimeStamp(),
+            frame: pngData,
+          )),
+        ),
+        options: CallOptions(timeout: const Duration(hours: 1)),
+      );
     } catch (e) {
       logger.e("Stream error: $e");
     }
@@ -340,12 +370,13 @@ class Watchtower {
     PostBatchEventResponse rsp = await watchtowerConnector.stub.postBatchEvent(
       PostBatchEventRequst(
         batchEvent: BatchEvent(
-            appBundle: appData.appBundle,
-            appId: appData.appId,
-            appKey: appData.appKey,
-            userId: userAppData.userId,
-            appVersion: appData.appVersion,
-            events: events),
+          appBundle: appData.appBundle,
+          appId: appData.appId,
+          appKey: appData.appKey,
+          userId: userAppData.userId,
+          appVersion: appData.appVersion,
+          events: events,
+        ),
       ),
     );
     logger.d("Batch events sent to watchtower. Response is: $rsp");
@@ -364,7 +395,7 @@ class Watchtower {
       try {
         if (isInitDone) {
           // If SDK is initialized post events
-          await _postBatchEvents(events: savedEvents);
+          // await _postBatchEvents(events: savedEvents);
           await DataStore().clearEvents();
         } else {
           // Else skip posting and clearing events batch

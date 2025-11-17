@@ -14,17 +14,13 @@ class _KWebViewState extends State<KWebView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.blue,
-      ),
+      appBar: AppBar(backgroundColor: Colors.blue),
       body: SafeArea(
         bottom: false,
         child: Stack(
           children: [
             InAppWebView(
-              initialUrlRequest: URLRequest(
-                url: Uri.parse('https://ya.ru'),
-              ),
+              initialUrlRequest: URLRequest(url: WebUri('https://ya.ru')),
               onWebViewCreated: (controller) {
                 webViewController = controller;
               },
@@ -32,8 +28,6 @@ class _KWebViewState extends State<KWebView> {
                 setState(() {});
               },
               onProgressChanged: (controller, progress) async {},
-              onLoadError: (controller, url, code, message) {},
-              onLoadHttpError: (controller, url, code, message) {},
               onLoadStop: (controller, url) {},
             ),
           ],

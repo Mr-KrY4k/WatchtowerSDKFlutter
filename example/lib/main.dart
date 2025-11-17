@@ -58,7 +58,6 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     logger.i("Application init");
-
     Watchtower.init(
       appId: appId,
       appKey: appKey,

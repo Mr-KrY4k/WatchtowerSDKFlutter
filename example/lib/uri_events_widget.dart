@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:watchtower_sdk/watchtower_sdk.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class UriEventWidget extends StatelessWidget {
   UriEventWidget({super.key});
@@ -13,8 +12,12 @@ class UriEventWidget extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Card(
         child: Padding(
-          padding:
-              const EdgeInsets.only(top: 16, bottom: 16, left: 16, right: 16),
+          padding: const EdgeInsets.only(
+            top: 16,
+            bottom: 16,
+            left: 16,
+            right: 16,
+          ),
           child: Column(
             children: [
               const Padding(
@@ -23,9 +26,11 @@ class UriEventWidget extends StatelessWidget {
                   children: [
                     Text(
                       "Open link event",
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    )
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -33,9 +38,7 @@ class UriEventWidget extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 16),
                 child: TextFormField(
                   controller: _uriController,
-                  decoration: const InputDecoration(
-                    labelText: "URI",
-                  ),
+                  decoration: const InputDecoration(labelText: "URI"),
                   validator: (String? value) {
                     if (value == null || value.isEmpty) {
                       return "Fill this field";
@@ -48,11 +51,10 @@ class UriEventWidget extends StatelessWidget {
                 children: [
                   OutlinedButton(
                     onPressed: () async {
-                      bool res =
-                          await launchUrl(Uri.parse(_uriController.text));
                       Watchtower.sendOpenLinkEvent(
-                          uri: _uriController.text,
-                          responseText: res ? "Sucess" : "Fail");
+                        uri: _uriController.text,
+                        responseText: "Success",
+                      );
                     },
                     child: const Text("Open"),
                   ),

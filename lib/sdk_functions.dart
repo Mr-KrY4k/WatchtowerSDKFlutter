@@ -1,11 +1,11 @@
 // Dart imports:
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:ui';
 
 // Package imports:
 import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:devicelocale/devicelocale.dart';
 import 'package:fixnum/fixnum.dart' as fixnum;
 
 // Project imports:
@@ -18,21 +18,16 @@ import 'package:watchtower_sdk/watchtower_proto/google/protobuf/timestamp.pb.dar
 
 var logger = getLogger("sdk_functions");
 
-enum LogLevel {
-  unknown,
-  debug,
-  info,
-  warning,
-  error,
-  fatal,
-}
+enum LogLevel { unknown, debug, info, warning, error, fatal }
 
-Future<String> _generateUserId(
-    {required String appId,
-    required String appBundle,
-    required String appFirstRunTime}) async {
-  String userId =
-      md5.convert(utf8.encode("$appId:$appBundle:$appFirstRunTime")).toString();
+Future<String> _generateUserId({
+  required String appId,
+  required String appBundle,
+  required String appFirstRunTime,
+}) async {
+  String userId = md5
+      .convert(utf8.encode("$appId:$appBundle:$appFirstRunTime"))
+      .toString();
   logger.d("Created user id: $userId");
   return userId;
 }
@@ -42,14 +37,16 @@ Future<bool> isAppInitiated() async {
   return userAppData.isAppInitiated == true;
 }
 
-Future<UserAppData> processApplicationFirstRun(
-    {required AppData appData}) async {
+Future<UserAppData> processApplicationFirstRun({
+  required AppData appData,
+}) async {
   // Get current time
   DateTime currentTime = DateTime.now().toUtc();
   String userId = await _generateUserId(
-      appId: appData.appId,
-      appBundle: appData.appBundle,
-      appFirstRunTime: currentTime.toIso8601String());
+    appId: appData.appId,
+    appBundle: appData.appBundle,
+    appFirstRunTime: currentTime.toIso8601String(),
+  );
 
   DeviceInfo deviceInfo = await getDeviceInfo();
   logger.d("Get device info: ${deviceInfo.toJson()}");
@@ -103,7 +100,11 @@ Future<DeviceInfo> getSystemInfo() async {
 Future<String?> getDeviceLocale() async {
   logger.d("Get device locale");
   try {
-    return await Devicelocale.currentLocale;
+    final systemLocales = PlatformDispatcher.instance.locales;
+    final currentLocale = systemLocales.first;
+    final deviceLocale =
+        '${currentLocale.languageCode}_${currentLocale.countryCode}';
+    return deviceLocale;
   } catch (e) {
     logger.w("Could not get device info");
   }
@@ -123,6 +124,7 @@ String getSessionId() {
 
 Timestamp currentTimeStamp() {
   var t = Timestamp(
-      seconds: fixnum.Int64(DateTime.now().millisecondsSinceEpoch ~/ 1000));
+    seconds: fixnum.Int64(DateTime.now().millisecondsSinceEpoch ~/ 1000),
+  );
   return t;
 }
