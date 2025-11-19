@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 // ==========================================================
 import 'package:watchtower_sdk/watchtower_sdk.dart';
 
@@ -24,9 +23,9 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    Watchtower.init(appId: appId, appKey: appKey, enableSessionRecorder: true);
     return MaterialApp(
       title: 'Watchtower Demo',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
@@ -56,7 +55,6 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     logger.i("Application init");
-    Watchtower.init(appId: appId, appKey: appKey, enableSessionRecorder: true);
   }
 
   @override
@@ -67,20 +65,6 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            // SizedBox(
-            //   height: 300,
-            //   child: InAppWebView(
-            //     initialUrlRequest: URLRequest(url: WebUri('https://ya.ru')),
-            //     onWebViewCreated: (controller) {
-            //       // webViewController = controller;
-            //     },
-            //     onLoadStart: (controller, url) {
-            //       setState(() {});
-            //     },
-            //     onProgressChanged: (controller, progress) async {},
-            //     onLoadStop: (controller, url) {},
-            //   ),
-            // ),
             const Other(),
             const SDKActionsWidget(),
             AppDataWidget(),

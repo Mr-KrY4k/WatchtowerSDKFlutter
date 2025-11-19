@@ -1,5 +1,5 @@
-#import "WatchtowerPigeon.h"
+#import <Flutter/Flutter.h>
 
-@interface WatchtowerSessionRecording : NSObject<WatchtowerScreenRecordingApi>
-- (void)startRecorder:(NSInteger)interval error:(FlutterError * _Nullable __autoreleasing * _Nonnull)error;
+@interface WatchtowerSessionRecording : NSObject<FlutterStreamHandler>
+- (void)startRecorder:(NSInteger)interval;
 @end

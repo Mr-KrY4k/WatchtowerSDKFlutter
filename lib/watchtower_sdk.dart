@@ -1,6 +1,7 @@
 library watchtower_sdk;
 
 // Dart imports:
+import 'dart:async';
 import 'dart:typed_data';
 
 // Flutter imports:
@@ -79,7 +80,7 @@ class Watchtower {
 
     logger.d("packageInfo.packageName: ${packageInfo.packageName}");
     logger.d("packageInfo.version: ${packageInfo.version}");
-    // Creaete watchtower connector
+
     watchtowerConnector = WatchtowerConnector(
       host: host,
       port: port,
@@ -88,10 +89,8 @@ class Watchtower {
     );
     await watchtowerConnector.createChannel();
 
-    // Init data store
     await DataStore().init(key: appData.appKey);
 
-    // DeviceInfo deviceInfo = await getDeviceInfo();
     logger.d("Init watchtower sdk");
     appData = appData;
     gaid = null;
@@ -139,7 +138,6 @@ class Watchtower {
       interval: sessionRecordIntervalInMs,
     );
 
-    // Subsctibe to a screenshot local store stream to save screenshot if GRPC server unavailable
     logger.d("Enable saving session frames to local store");
     SessionRecorder.screenshotLocalStoreStreamController.stream.listen((
       pngData,
@@ -328,40 +326,68 @@ class Watchtower {
     );
   }
 
+  static StreamController<SessionFrame>? _grpcStreamController;
+  static StreamSubscription<Uint8List?>? _grpcStreamSubscription;
+
   static void _onWatchtowerConnectionStateChanged(bool state) {
     if (isSessionRecorderEnabeled) {
       logger.d("Update session recorder send to watchtower state tp $state");
       SessionRecorder.isSendToWatchtowerEnabled = state;
 
-      // If connection to watchtower restore
       if (state == true) {
         logger.d("reassign stream reader");
-        if (!SessionRecorder.screenshotStreamController.hasListener) {
-          _startSessionRecordTransmition();
-        }
+        _startSessionRecordTransmition();
+      } else {
+        _stopSessionRecordTransmition();
       }
     }
   }
 
+  static void _stopSessionRecordTransmition() {
+    _grpcStreamSubscription?.cancel();
+    _grpcStreamSubscription = null;
+    _grpcStreamController?.close();
+    _grpcStreamController = null;
+  }
+
   static Future<void> _startSessionRecordTransmition() async {
     logger.d("Start session record transmition");
+
+    _stopSessionRecordTransmition();
+
+    _grpcStreamController = StreamController<SessionFrame>();
+
+    _grpcStreamSubscription = SessionRecorder.screenshotStreamController.stream
+        .listen(
+          (Uint8List? pngData) {
+            if (_grpcStreamController != null &&
+                !_grpcStreamController!.isClosed) {
+              _grpcStreamController!.add(
+                SessionFrame(
+                  appId: appData.appId,
+                  appBundle: appData.appBundle,
+                  appKey: appData.appKey,
+                  userId: userAppData.userId,
+                  sessionId: sessionId,
+                  frameTimestamp: currentTimeStamp(),
+                  frame: pngData,
+                ),
+              );
+            }
+          },
+          onError: (error) {
+            logger.e("Screenshot stream error: $error");
+          },
+        );
+
     try {
       watchtowerConnector.stub.postSessionRecord(
-        SessionRecorder.screenshotStreamController.stream.map(
-          ((Uint8List? pngData) => SessionFrame(
-            appId: appData.appId,
-            appBundle: appData.appBundle,
-            appKey: appData.appKey,
-            userId: userAppData.userId,
-            sessionId: sessionId,
-            frameTimestamp: currentTimeStamp(),
-            frame: pngData,
-          )),
-        ),
+        _grpcStreamController!.stream,
         options: CallOptions(timeout: const Duration(hours: 1)),
       );
     } catch (e) {
       logger.e("Stream error: $e");
+      _stopSessionRecordTransmition();
     }
   }
 
@@ -403,7 +429,6 @@ class Watchtower {
         }
       } on GrpcError catch (e) {
         if (e.code == 3) {
-          // If pass incorrect arguments clean all events in cache
           logger.w("Invalid argumets. Error: ${e.toString()} ${e.code}");
         } else {
           logger.e("GRPC Error. Error: ${e.toString()} ${e.code}");

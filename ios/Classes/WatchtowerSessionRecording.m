@@ -1,31 +1,45 @@
 #import "WatchtowerSessionRecording.h"
-#import "WatchtowerPlugin.h"
 #import <Flutter/Flutter.h>
 
 @interface WatchtowerSessionRecording()
 @property (nonatomic, assign) BOOL isForeground;
+@property (nonatomic, copy) FlutterEventSink eventSink;
 @end
 
 @implementation WatchtowerSessionRecording
 
-- (void)startRec:(NSInteger) interval{
-    NSTimeInterval timeInterval = (NSTimeInterval) interval / 1000.0;
+- (FlutterError *)onListenWithArguments:(id)arguments eventSink:(FlutterEventSink)events {
+    self.eventSink = events;
+    return nil;
+}
+
+- (FlutterError *)onCancelWithArguments:(id)arguments {
+    self.eventSink = nil;
+    return nil;
+}
+
+- (void)startRec:(NSInteger)interval {
+    NSTimeInterval timeInterval = (NSTimeInterval)interval / 1000.0;
     UIApplication *app = [UIApplication sharedApplication];
     UIViewController *rootController = app.delegate.window.rootViewController;
     self.isForeground = [self checkAppState];
+    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         while (true) {
-            if(self.isForeground){
+            if (self.isForeground && self.eventSink != nil) {
                 @autoreleasepool {
-                    UIImage *screenshot = [self takeScreenshot: rootController.view];
-                    UIImage *compressedScreenshot = [self СompressScreenshot: screenshot];
+                    UIImage *screenshot = [self takeScreenshot:rootController.view];
+                    UIImage *compressedScreenshot = [self СompressScreenshot:screenshot];
                     
-                    //NSData *imageData = UIImageJPEGRepresentation(compressedScreenshot, 0.5);
                     NSData *imageData = UIImagePNGRepresentation(compressedScreenshot);
-                   
+                    
                     FlutterStandardTypedData *typedData = [FlutterStandardTypedData typedDataWithBytes:imageData];
-                    [screenRecordingFlutterListener takeScreenshot:typedData completion:^(FlutterError * _Nullable null) {
-                    }];
+                    
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (self.eventSink != nil) {
+                            self.eventSink(typedData);
+                        }
+                    });
                 }
             }
             [NSThread sleepForTimeInterval:timeInterval];
@@ -33,9 +47,9 @@
     });
 }
 
-- (BOOL)checkAppState{
+- (BOOL)checkAppState {
     UIApplication *app = [UIApplication sharedApplication];
-    if(app.applicationState == UIApplicationStateActive){
+    if (app.applicationState == UIApplicationStateActive) {
         return YES;
     }
     return NO;
@@ -50,7 +64,7 @@
     return screenshot;
 }
 
-- (UIImage *) СompressScreenshot:(UIImage *) screenshotOriginal {
+- (UIImage *)СompressScreenshot:(UIImage *)screenshotOriginal {
     CGFloat sizeRatio = screenshotOriginal.size.width / screenshotOriginal.size.height;
     CGImageRef imageRef = [screenshotOriginal CGImage];
     NSUInteger resolution = 640;
@@ -68,22 +82,27 @@
     UIImage *imageFromPixels = [UIImage imageWithCGImage:imageFromPixelsRef];
     CGImageRelease(imageFromPixelsRef);
     CGContextRelease(context);
-    CGColorSpaceRelease(colorSpace);
     free(rawData);
     return imageFromPixels;
 }
 
-- (void)startRecorder:(NSInteger)interval error:(FlutterError * _Nullable __autoreleasing * _Nonnull)error {
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationDidEnterBackgroud) name:UIApplicationDidEnterBackgroundNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(applicationWillEnterForeground) name:UIApplicationWillEnterForegroundNotification object:nil];
-    [self startRec: interval];
+- (void)startRecorder:(NSInteger)interval {
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(applicationDidEnterBackgroud) 
+                                                 name:UIApplicationDidEnterBackgroundNotification 
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(applicationWillEnterForeground) 
+                                                 name:UIApplicationWillEnterForegroundNotification 
+                                               object:nil];
+    [self startRec:interval];
 }
 
-- (void)applicationDidEnterBackgroud{
+- (void)applicationDidEnterBackgroud {
     self.isForeground = NO;
 }
 
-- (void)applicationWillEnterForeground{
+- (void)applicationWillEnterForeground {
     self.isForeground = YES;
 }
 

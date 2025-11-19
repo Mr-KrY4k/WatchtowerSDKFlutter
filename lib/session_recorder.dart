@@ -23,16 +23,20 @@ class SessionRecorder {
   late final String sessionId;
 
   static StreamController<Uint8List?> screenshotStreamController =
-      StreamController<Uint8List?>();
+      StreamController<Uint8List?>.broadcast();
   static final StreamController<Uint8List?>
-      screenshotLocalStoreStreamController = StreamController<Uint8List?>();
+  screenshotLocalStoreStreamController =
+      StreamController<Uint8List?>.broadcast();
 
   static bool isSendToWatchtowerEnabled = true;
 
-  void init(
-      {required String sessionId,
-      double pixelRatio = 1.0,
-      int interval = 300}) {
+  StreamSubscription<Uint8List>? _screenRecordingSubscription;
+
+  void init({
+    required String sessionId,
+    double pixelRatio = 1.0,
+    int interval = 300,
+  }) {
     _instance.pixelRatio = pixelRatio;
     _instance.interval = interval;
     _instance.sessionId = sessionId;
@@ -40,29 +44,35 @@ class SessionRecorder {
   }
 
   Future<void> startScreenRecording({required int interval}) async {
-    final screenRecordingListener = ScreenRecorderListener();
-    WatchtowerScreenRecordingFlutterListener.setup(screenRecordingListener);
     final screenRecorderApi = WatchtowerScreenRecordingApi();
-    screenRecorderApi.startRecorder(interval);
-  }
-}
 
-class ScreenRecorderListener extends WatchtowerScreenRecordingFlutterListener {
-  @override
-  void takeScreenshot(Uint8List frame) {
-    print(frame.length);
-    if (SessionRecorder.isSendToWatchtowerEnabled) {
-      // Send frame to GRPC stream
-      SessionRecorder.screenshotStreamController.add(frame);
-    } else {
-      if (!SessionRecorder.screenshotStreamController.isClosed) {
-        logger.w("Close screenshot stream controller");
-        SessionRecorder.screenshotStreamController.close();
-        SessionRecorder.screenshotStreamController =
-            StreamController<Uint8List?>();
+    _screenRecordingSubscription = screenRecorderApi.screenshotStream.listen(
+      (Uint8List frame) {
+        _handleScreenshot(frame);
+      },
+      onError: (error) {
+        logger.e("Error receiving screenshot: $error");
+      },
+    );
+
+    await screenRecorderApi.startRecorder(interval);
+  }
+
+  void _handleScreenshot(Uint8List frame) {
+    // print(frame.length);
+    if (isSendToWatchtowerEnabled) {
+      if (!screenshotStreamController.isClosed) {
+        screenshotStreamController.add(frame);
       }
-      // Send frame to Local store stream
-      SessionRecorder.screenshotLocalStoreStreamController.add(frame);
+    } else {
+      if (!screenshotLocalStoreStreamController.isClosed) {
+        screenshotLocalStoreStreamController.add(frame);
+      }
     }
+  }
+
+  void dispose() {
+    _screenRecordingSubscription?.cancel();
+    _screenRecordingSubscription = null;
   }
 }

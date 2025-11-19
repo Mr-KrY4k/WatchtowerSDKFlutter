@@ -1,6 +1,5 @@
 package com.kitegroup.watchtower
 
-import WatchtowerScreenRecordingApi
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Build
@@ -20,7 +19,7 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 
 
-class WatchtowerSessionRecording : WatchtowerScreenRecordingApi {
+class WatchtowerSessionRecording(private val onFrameCaptured: (ByteArray) -> Unit) {
 
     private val pixelCopyThread = HandlerThread("WatchtowerPixelCopy").apply { start() }
     private val pixelCopyHandler = Handler(pixelCopyThread.looper)
@@ -30,7 +29,7 @@ class WatchtowerSessionRecording : WatchtowerScreenRecordingApi {
     private val manualCaptureThread = HandlerThread("WatchtowerManualCapture").apply { start() }
     private val manualCaptureHandler = Handler(manualCaptureThread.looper)
 
-    override fun startRecorder(interval: Long) {
+    fun startRecorder(interval: Long) {
         CoroutineScope(Dispatchers.Default).launch {
             while (true) {
                 takeScreenshot()
@@ -88,7 +87,6 @@ class WatchtowerSessionRecording : WatchtowerScreenRecordingApi {
     }
 
     private fun captureSurface(surfaceView: SurfaceView, width: Int, height: Int, fallback: () -> Unit) {
-        // Масштабируем для оптимизации размера
         val scale = width.toFloat() / height.toFloat()
         val resolution = 640
         val scaledHeight = resolution
@@ -114,7 +112,6 @@ class WatchtowerSessionRecording : WatchtowerScreenRecordingApi {
     }
 
     private fun captureWindow(window: Window, width: Int, height: Int) {
-        // Масштабируем для оптимизации размера
         val scale = width.toFloat() / height.toFloat()
         val resolution = 640
         val scaledHeight = resolution
@@ -176,7 +173,7 @@ class WatchtowerSessionRecording : WatchtowerScreenRecordingApi {
             val byteArray = bitmapToByteArray(bitmap)
             bitmap.recycle()
             mainHandler.post {
-                WatchtowerPlugin.screenRecordingFlutterListener.takeScreenshot(byteArray) {}
+                onFrameCaptured(byteArray)
             }
         }
     }
