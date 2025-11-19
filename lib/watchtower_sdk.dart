@@ -138,36 +138,50 @@ class Watchtower {
       interval: sessionRecordIntervalInMs,
     );
 
-    logger.d("Enable saving session frames to local store");
-    SessionRecorder.screenshotLocalStoreStreamController.stream.listen((
-      pngData,
-    ) {
-      DataStore().saveSessionFrame(
-        sessionId: sessionId,
-        frame: SessionFrame(
-          appId: appData.appId,
-          appBundle: appData.appBundle,
-          appKey: appData.appKey,
-          userId: userAppData.userId,
+    if (_localStoreSubscription == null) {
+      logger.d("Enable saving session frames to local store");
+      _localStoreSubscription = SessionRecorder.screenshotLocalStoreStreamController.stream.listen((
+        pngData,
+      ) {
+        DataStore().saveSessionFrame(
           sessionId: sessionId,
-          frameTimestamp: currentTimeStamp(),
-          frame: pngData,
-        ),
-      );
-    });
+          frame: SessionFrame(
+            appId: appData.appId,
+            appBundle: appData.appBundle,
+            appKey: appData.appKey,
+            userId: userAppData.userId,
+            sessionId: sessionId,
+            frameTimestamp: currentTimeStamp(),
+            frame: pngData,
+          ),
+        );
+      });
+    }
 
-    await _startSessionRecordTransmition();
+    _startSessionRecordTransmition();
+    _sendCachedFrames();
+  }
 
-    logger.d("Check session frames saved to local store");
-    ResponseStream<SessionFrameAcceptStatus> rsps = watchtowerConnector.stub
-        .postSessionRecord(DataStore().getAllSessionsframes());
+  static void _sendCachedFrames() {
+    _cachedFramesSubscription?.cancel();
+    
     try {
-      await for (var item in rsps) {
-        logger.d("Stream response: $item");
-        DataStore().deleteSessionRecordById(item.frameId);
-      }
-    } on GrpcError catch (_) {
-      logger.d("Cached frames send done");
+      logger.d("📦 Sending cached frames...");
+      final rsps = watchtowerConnector.stub.postSessionRecord(
+        DataStore().getAllSessionsframes(),
+        options: CallOptions(timeout: const Duration(seconds: 30)),
+      );
+      
+      _cachedFramesSubscription = rsps.listen(
+        (item) {
+          DataStore().deleteSessionRecordById(item.frameId);
+        },
+        onError: (e) {},
+        onDone: () => logger.d("✓ Cached frames sent"),
+        cancelOnError: false,
+      );
+    } catch (e) {
+      logger.w("Failed to send cached frames: $e");
     }
   }
 
@@ -327,66 +341,111 @@ class Watchtower {
   }
 
   static StreamController<SessionFrame>? _grpcStreamController;
-  static StreamSubscription<Uint8List?>? _grpcStreamSubscription;
+  static StreamSubscription<SessionFrameAcceptStatus>? _mainStreamSubscription;
+  static StreamSubscription<Uint8List?>? _screenshotSubscription;
+  static StreamSubscription<SessionFrameAcceptStatus>? _cachedFramesSubscription;
+  static StreamSubscription<Uint8List?>? _localStoreSubscription;
+  static bool _isTransmitting = false;
 
   static void _onWatchtowerConnectionStateChanged(bool state) {
-    if (isSessionRecorderEnabeled) {
-      logger.d("Update session recorder send to watchtower state tp $state");
-      SessionRecorder.isSendToWatchtowerEnabled = state;
-
-      if (state == true) {
-        logger.d("reassign stream reader");
+    if (!isSessionRecorderEnabeled) return;
+    
+    if (state) {
+      logger.i("🟢 Connected to server");
+      SessionRecorder.isSendToWatchtowerEnabled = true;
+      if (!_isTransmitting) {
         _startSessionRecordTransmition();
-      } else {
+        _sendCachedFrames();
+      }
+    } else {
+      logger.w("🔴 Disconnected from server");
+      SessionRecorder.isSendToWatchtowerEnabled = false;
+      if (_isTransmitting) {
         _stopSessionRecordTransmition();
       }
     }
   }
 
   static void _stopSessionRecordTransmition() {
-    _grpcStreamSubscription?.cancel();
-    _grpcStreamSubscription = null;
-    _grpcStreamController?.close();
-    _grpcStreamController = null;
+    if (!_isTransmitting) return;
+    
+    logger.i("⛔ Stopping session transmition");
+    _isTransmitting = false;
+    
+    _mainStreamSubscription?.cancel();
+    _mainStreamSubscription = null;
+    
+    _cachedFramesSubscription?.cancel();
+    _cachedFramesSubscription = null;
+    
+    _screenshotSubscription?.cancel();
+    _screenshotSubscription = null;
   }
 
-  static Future<void> _startSessionRecordTransmition() async {
-    logger.d("Start session record transmition");
-
+  static void _startSessionRecordTransmition() {
+    if (_isTransmitting) return;
+    
+    logger.i("✅ Starting session transmition");
     _stopSessionRecordTransmition();
+    
+    _isTransmitting = true;
+    
+    _grpcStreamController = StreamController<SessionFrame>.broadcast();
+    final currentController = _grpcStreamController!;
 
-    _grpcStreamController = StreamController<SessionFrame>();
-
-    _grpcStreamSubscription = SessionRecorder.screenshotStreamController.stream
-        .listen(
-          (Uint8List? pngData) {
-            if (_grpcStreamController != null &&
-                !_grpcStreamController!.isClosed) {
-              _grpcStreamController!.add(
-                SessionFrame(
-                  appId: appData.appId,
-                  appBundle: appData.appBundle,
-                  appKey: appData.appKey,
-                  userId: userAppData.userId,
-                  sessionId: sessionId,
-                  frameTimestamp: currentTimeStamp(),
-                  frame: pngData,
-                ),
-              );
-            }
-          },
-          onError: (error) {
-            logger.e("Screenshot stream error: $error");
-          },
-        );
+    _screenshotSubscription = SessionRecorder.screenshotStreamController.stream.listen(
+      (pngData) {
+        if (!_isTransmitting || currentController.isClosed) return;
+        
+        try {
+          currentController.add(SessionFrame(
+            appId: appData.appId,
+            appBundle: appData.appBundle,
+            appKey: appData.appKey,
+            userId: userAppData.userId,
+            sessionId: sessionId,
+            frameTimestamp: currentTimeStamp(),
+            frame: pngData,
+          ));
+        } catch (e) {}
+      },
+      onError: (e) {},
+      cancelOnError: false,
+    );
 
     try {
-      watchtowerConnector.stub.postSessionRecord(
-        _grpcStreamController!.stream,
+      final responseStream = watchtowerConnector.stub.postSessionRecord(
+        currentController.stream,
         options: CallOptions(timeout: const Duration(hours: 1)),
       );
+      
+      _mainStreamSubscription = responseStream.listen(
+        (response) {},
+        onError: (e) {
+          logger.w("🔌 Stream error: ${e.toString().substring(0, 50)}...");
+          _stopSessionRecordTransmition();
+          Future.delayed(const Duration(seconds: 1), () {
+            if (!_isTransmitting) {
+              logger.i("🔄 Restarting after error...");
+              _startSessionRecordTransmition();
+            }
+          });
+        },
+        onDone: () {
+          logger.w("🔚 Stream completed, restarting...");
+          _stopSessionRecordTransmition();
+          Future.delayed(const Duration(seconds: 1), () {
+            if (!_isTransmitting) {
+              _startSessionRecordTransmition();
+            }
+          });
+        },
+        cancelOnError: false,
+      );
+      
+      logger.i("📡 gRPC stream started");
     } catch (e) {
-      logger.e("Stream error: $e");
+      logger.e("❌ Failed to start: $e");
       _stopSessionRecordTransmition();
     }
   }

@@ -59,15 +59,14 @@ class SessionRecorder {
   }
 
   void _handleScreenshot(Uint8List frame) {
-    // print(frame.length);
-    if (isSendToWatchtowerEnabled) {
-      if (!screenshotStreamController.isClosed) {
+    try {
+      if (isSendToWatchtowerEnabled) {
         screenshotStreamController.add(frame);
-      }
-    } else {
-      if (!screenshotLocalStoreStreamController.isClosed) {
+      } else {
         screenshotLocalStoreStreamController.add(frame);
       }
+    } catch (e) {
+      logger.e("Screenshot handler error: $e");
     }
   }
 

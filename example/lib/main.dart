@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// ==========================================================
 import 'package:watchtower_sdk/watchtower_sdk.dart';
 
 import 'package:watchtower_sdk_app/app_data_widget.dart';
@@ -25,7 +24,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Watchtower.init(appId: appId, appKey: appKey, enableSessionRecorder: true);
+    Watchtower.init(
+      appId: appId,
+      appKey: appKey,
+      enableSessionRecorder: true,
+      sessionRecordIntervalInMs: 300,
+    );
     return MaterialApp(
       title: 'Watchtower Demo',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
