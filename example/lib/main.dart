@@ -24,12 +24,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Watchtower.init(
-      appId: appId,
-      appKey: appKey,
-      enableSessionRecorder: true,
-      sessionRecordIntervalInMs: 300,
-    );
+    Watchtower.init(appId: appId, appKey: appKey, enableSessionRecorder: true);
     return MaterialApp(
       title: 'Watchtower Demo',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),

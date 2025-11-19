@@ -55,7 +55,7 @@ class Watchtower {
     int port = 50053,
     bool enableSessionRecorder = false,
     bool useTls = true,
-    int sessionRecordIntervalInMs = 300,
+    int sessionRecordIntervalInMs = 500,
   }) async {
     validateWatchtowerParams(
       enableSessionRecorder: enableSessionRecorder,
@@ -140,22 +140,23 @@ class Watchtower {
 
     if (_localStoreSubscription == null) {
       logger.d("Enable saving session frames to local store");
-      _localStoreSubscription = SessionRecorder.screenshotLocalStoreStreamController.stream.listen((
-        pngData,
-      ) {
-        DataStore().saveSessionFrame(
-          sessionId: sessionId,
-          frame: SessionFrame(
-            appId: appData.appId,
-            appBundle: appData.appBundle,
-            appKey: appData.appKey,
-            userId: userAppData.userId,
-            sessionId: sessionId,
-            frameTimestamp: currentTimeStamp(),
-            frame: pngData,
-          ),
-        );
-      });
+      _localStoreSubscription = SessionRecorder
+          .screenshotLocalStoreStreamController
+          .stream
+          .listen((pngData) {
+            DataStore().saveSessionFrame(
+              sessionId: sessionId,
+              frame: SessionFrame(
+                appId: appData.appId,
+                appBundle: appData.appBundle,
+                appKey: appData.appKey,
+                userId: userAppData.userId,
+                sessionId: sessionId,
+                frameTimestamp: currentTimeStamp(),
+                frame: pngData,
+              ),
+            );
+          });
     }
 
     _startSessionRecordTransmition();
@@ -164,14 +165,14 @@ class Watchtower {
 
   static void _sendCachedFrames() {
     _cachedFramesSubscription?.cancel();
-    
+
     try {
       logger.d("📦 Sending cached frames...");
       final rsps = watchtowerConnector.stub.postSessionRecord(
         DataStore().getAllSessionsframes(),
         options: CallOptions(timeout: const Duration(seconds: 30)),
       );
-      
+
       _cachedFramesSubscription = rsps.listen(
         (item) {
           DataStore().deleteSessionRecordById(item.frameId);
@@ -343,13 +344,14 @@ class Watchtower {
   static StreamController<SessionFrame>? _grpcStreamController;
   static StreamSubscription<SessionFrameAcceptStatus>? _mainStreamSubscription;
   static StreamSubscription<Uint8List?>? _screenshotSubscription;
-  static StreamSubscription<SessionFrameAcceptStatus>? _cachedFramesSubscription;
+  static StreamSubscription<SessionFrameAcceptStatus>?
+  _cachedFramesSubscription;
   static StreamSubscription<Uint8List?>? _localStoreSubscription;
   static bool _isTransmitting = false;
 
   static void _onWatchtowerConnectionStateChanged(bool state) {
     if (!isSessionRecorderEnabeled) return;
-    
+
     if (state) {
       logger.i("🟢 Connected to server");
       SessionRecorder.isSendToWatchtowerEnabled = true;
@@ -368,57 +370,60 @@ class Watchtower {
 
   static void _stopSessionRecordTransmition() {
     if (!_isTransmitting) return;
-    
+
     logger.i("⛔ Stopping session transmition");
     _isTransmitting = false;
-    
+
     _mainStreamSubscription?.cancel();
     _mainStreamSubscription = null;
-    
+
     _cachedFramesSubscription?.cancel();
     _cachedFramesSubscription = null;
-    
+
     _screenshotSubscription?.cancel();
     _screenshotSubscription = null;
   }
 
   static void _startSessionRecordTransmition() {
     if (_isTransmitting) return;
-    
+
     logger.i("✅ Starting session transmition");
     _stopSessionRecordTransmition();
-    
+
     _isTransmitting = true;
-    
+
     _grpcStreamController = StreamController<SessionFrame>.broadcast();
     final currentController = _grpcStreamController!;
 
-    _screenshotSubscription = SessionRecorder.screenshotStreamController.stream.listen(
-      (pngData) {
-        if (!_isTransmitting || currentController.isClosed) return;
-        
-        try {
-          currentController.add(SessionFrame(
-            appId: appData.appId,
-            appBundle: appData.appBundle,
-            appKey: appData.appKey,
-            userId: userAppData.userId,
-            sessionId: sessionId,
-            frameTimestamp: currentTimeStamp(),
-            frame: pngData,
-          ));
-        } catch (e) {}
-      },
-      onError: (e) {},
-      cancelOnError: false,
-    );
+    _screenshotSubscription = SessionRecorder.screenshotStreamController.stream
+        .listen(
+          (pngData) {
+            if (!_isTransmitting || currentController.isClosed) return;
+
+            try {
+              currentController.add(
+                SessionFrame(
+                  appId: appData.appId,
+                  appBundle: appData.appBundle,
+                  appKey: appData.appKey,
+                  userId: userAppData.userId,
+                  sessionId: sessionId,
+                  frameTimestamp: currentTimeStamp(),
+                  frame: pngData,
+                ),
+              );
+            } catch (e) {}
+          },
+          onError: (e) {},
+          cancelOnError: false,
+        );
 
     try {
       final responseStream = watchtowerConnector.stub.postSessionRecord(
         currentController.stream,
         options: CallOptions(timeout: const Duration(hours: 1)),
       );
-      
+
       _mainStreamSubscription = responseStream.listen(
         (response) {},
         onError: (e) {
@@ -442,7 +447,7 @@ class Watchtower {
         },
         cancelOnError: false,
       );
-      
+
       logger.i("📡 gRPC stream started");
     } catch (e) {
       logger.e("❌ Failed to start: $e");
