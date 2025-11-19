@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 // ==========================================================
 import 'package:watchtower_sdk/watchtower_sdk.dart';
 
@@ -28,10 +29,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Watchtower Demo',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-      ),
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -58,23 +56,31 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     logger.i("Application init");
-    Watchtower.init(
-      appId: appId,
-      appKey: appKey,
-      enableSessionRecorder: true,
-    );
+    Watchtower.init(appId: appId, appKey: appKey, enableSessionRecorder: true);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
+      appBar: AppBar(title: Text(widget.title)),
       body: SingleChildScrollView(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            // SizedBox(
+            //   height: 300,
+            //   child: InAppWebView(
+            //     initialUrlRequest: URLRequest(url: WebUri('https://ya.ru')),
+            //     onWebViewCreated: (controller) {
+            //       // webViewController = controller;
+            //     },
+            //     onLoadStart: (controller, url) {
+            //       setState(() {});
+            //     },
+            //     onProgressChanged: (controller, progress) async {},
+            //     onLoadStop: (controller, url) {},
+            //   ),
+            // ),
             const Other(),
             const SDKActionsWidget(),
             AppDataWidget(),
@@ -83,28 +89,31 @@ class _MyHomePageState extends State<MyHomePage> {
             CustomEventWidget(),
             LogEventWidget(),
             Container(
-                width: 400,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.blueAccent),
-                ),
-                child: screenShot != null
-                    ? Image.memory(screenShot!)
-                    : Container())
+              width: 400,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.blueAccent),
+              ),
+              child: screenShot != null
+                  ? Image.memory(screenShot!)
+                  : Container(),
+            ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-          child: const Icon(Icons.info),
-          onPressed: () async {
-            showDialog(
-                context: context,
-                builder: (BuildContext context) {
-                  return AlertDialog(
-                    title: const Text("User info"),
-                    content: Text("User ID: ${Watchtower.userAppData.userId}"),
-                  );
-                });
-          }),
+        child: const Icon(Icons.info),
+        onPressed: () async {
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text("User info"),
+                content: Text("User ID: ${Watchtower.userAppData.userId}"),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

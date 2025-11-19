@@ -15,7 +15,11 @@ PlatformException _createConnectionError(String channelName) {
   );
 }
 
-List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty = false}) {
+List<Object?> wrapResponse({
+  Object? result,
+  PlatformException? error,
+  bool empty = false,
+}) {
   if (empty) {
     return <Object?>[];
   }
@@ -30,13 +34,14 @@ class WatchtowerScreenRecordingApi {
   /// available for dependency injection.  If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
   WatchtowerScreenRecordingApi({BinaryMessenger? binaryMessenger})
-      : _binaryMessenger = binaryMessenger;
+    : _binaryMessenger = binaryMessenger;
   final BinaryMessenger? _binaryMessenger;
 
   static const MessageCodec<Object?> codec = StandardMessageCodec();
 
   Future<void> startRecorder(int arg_interval) async {
-    const String channelName = 'dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingApi.startRecorder';
+    const String channelName =
+        'dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingApi.startRecorder';
     final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
       channelName,
       codec,
@@ -63,28 +68,39 @@ abstract class WatchtowerScreenRecordingFlutterListener {
 
   void takeScreenshot(Uint8List frame);
 
-  static void setup(WatchtowerScreenRecordingFlutterListener? api, {BinaryMessenger? binaryMessenger}) {
+  static void setup(
+    WatchtowerScreenRecordingFlutterListener? api, {
+    BinaryMessenger? binaryMessenger,
+  }) {
     {
       final BasicMessageChannel<Object?> channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingFlutterListener.takeScreenshot', codec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingFlutterListener.takeScreenshot',
+        codec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         channel.setMessageHandler(null);
       } else {
         channel.setMessageHandler((Object? message) async {
-          assert(message != null,
-          'Argument for dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingFlutterListener.takeScreenshot was null.');
+          assert(
+            message != null,
+            'Argument for dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingFlutterListener.takeScreenshot was null.',
+          );
           final List<Object?> args = (message as List<Object?>?)!;
           final Uint8List? arg_frame = (args[0] as Uint8List?);
-          assert(arg_frame != null,
-              'Argument for dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingFlutterListener.takeScreenshot was null, expected non-null Uint8List.');
+          assert(
+            arg_frame != null,
+            'Argument for dev.flutter.pigeon.com.watchtower.plugin.WatchtowerScreenRecordingFlutterListener.takeScreenshot was null, expected non-null Uint8List.',
+          );
           try {
             api.takeScreenshot(arg_frame!);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
